@@ -4,22 +4,94 @@
  * Module dependencies.
  */
 
-var app = require('../app');
-var debug = require('debug')('fugle:server');
-var http = require('http');
+const app = require('../app');
+const debug = require('debug')('fugle:server');
+const http = require('http');
 
 /**
  * Get port from environment and store in Express.
  */
 
-var port = normalizePort(process.env.PORT || '3000');
+const port = normalizePort(process.env.PORT || '3000');
 app.set('port', port);
 
 /**
  * Create HTTP server.
  */
 
-var server = http.createServer(app);
+const server = http.createServer(app);
+
+const WebSocket = require('ws').Server;
+const WebSocketClient = require('ws');
+const wss = new WebSocket({server});
+
+wss.on('connection', (ws, req) => {
+  console.log('Client connected')
+  ws.send('connection success!!!')
+
+  ws.on('message', function message(data) {
+    data = data.toString();
+    data = JSON.parse(data);
+    const event = data.event;
+
+    switch (event) {
+      case "bts:subscribe":
+        subscribe(data, ws)
+      break;
+      case "bts:unsubscribe":
+        unsubscribe(data, ws)
+      break;
+      default:
+        console.warn(`event: ${event} unknown`);
+        ws.send("wrong event QQ")
+      break;
+    }
+
+
+    function subscribe(data, ws) {
+      let socket = new WebSocketClient("wss://ws.bitstamp.net");
+
+      socket.on('error', console.error);
+
+      socket.on('open', function open() {
+        socket.send(JSON.stringify(data));
+      });
+
+      socket.on('message', function message(btsData) {
+        const result = JSON.parse(btsData);
+        if (result.event == 'trade') {
+          ws.send(JSON.stringify(JSON.parse(btsData).data))
+        } else if (result.event == 'bts:subscription_succeeded') {
+          ws.send(JSON.stringify({
+            message: `Channel ${data.data.channel} subscribe!`
+          }))
+        }
+      });
+      
+    }
+    function unsubscribe(data, ws) {
+      let socket = new WebSocketClient("wss://ws.bitstamp.net");
+
+      socket.on('error', console.error);
+
+      socket.on('open', function open() {
+        socket.send(JSON.stringify(data));
+      });
+
+      socket.on('message', function message(btsData) {
+        const result = JSON.parse(btsData)
+        if (result.event == 'bts:unsubscription_succeeded') {
+          ws.send(JSON.stringify({
+            message: `Channel ${data.data.channel} unsubscribe!`
+          }))
+        }
+      });
+    }
+    
+
+  });
+
+})
 
 /**
  * Listen on provided port, on all network interfaces.
@@ -34,7 +106,7 @@ server.on('listening', onListening);
  */
 
 function normalizePort(val) {
-  var port = parseInt(val, 10);
+  const port = parseInt(val, 10);
 
   if (isNaN(port)) {
     // named pipe
@@ -58,7 +130,7 @@ function onError(error) {
     throw error;
   }
 
-  var bind = typeof port === 'string'
+  const bind = typeof port === 'string'
     ? 'Pipe ' + port
     : 'Port ' + port;
 
@@ -82,8 +154,8 @@ function onError(error) {
  */
 
 function onListening() {
-  var addr = server.address();
-  var bind = typeof addr === 'string'
+  const addr = server.address();
+  const bind = typeof addr === 'string'
     ? 'pipe ' + addr
     : 'port ' + addr.port;
   debug('Listening on ' + bind);
