@@ -50,45 +50,67 @@ wss.on('connection', (ws, req) => {
 
     function subscribe(data, ws) {
       let socket = new WebSocketClient("wss://ws.bitstamp.net");
+      let currency_pair = data.data.channel.split('_')[2];
+
+      fetch(`https://www.bitstamp.net/api/v2/ohlc/${currency_pair}/?step=60&limit=1`)
+      .then((response) => response.json())
+      .then((response) => {
+        let ohlc = response.data.ohlc[0];
+
+        const data = {
+          currency: response.data.pair,
+          open: ohlc.open,
+          close: ohlc.close,
+          high: ohlc.high,
+          low: ohlc.low
+        }
+        
+        ws.send(JSON.stringify(data))
+      })
+      .catch(err => {
+        console.log(err)
+      })
 
       socket.on('error', console.error);
 
-      socket.on('open', function open() {
+      socket.on('open', () => {
         socket.send(JSON.stringify(data));
       });
 
-      socket.on('message', function message(btsData) {
+      socket.on('message', (btsData) => {
         const result = JSON.parse(btsData);
         if (result.event == 'trade') {
-          ws.send(JSON.stringify(JSON.parse(btsData).data))
+          ws.send(JSON.stringify({
+            currency: data.data.channel,
+            price: JSON.parse(btsData).data.price
+          }))
         } else if (result.event == 'bts:subscription_succeeded') {
           ws.send(JSON.stringify({
             message: `Channel ${data.data.channel} subscribe!`
           }))
         }
       });
-      
     }
+
+
     function unsubscribe(data, ws) {
       let socket = new WebSocketClient("wss://ws.bitstamp.net");
 
       socket.on('error', console.error);
 
-      socket.on('open', function open() {
+      socket.on('open', () => {
         socket.send(JSON.stringify(data));
       });
 
-      socket.on('message', function message(btsData) {
+      socket.on('message', (btsData) => {
         const result = JSON.parse(btsData)
         if (result.event == 'bts:unsubscription_succeeded') {
           ws.send(JSON.stringify({
-            message: `Channel ${data.data.channel} unsubscribe!`
+            message: `Channel ${data.data.channel} unsubscribe`
           }))
         }
       });
     }
-    
-
   });
 
 })

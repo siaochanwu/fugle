@@ -8,6 +8,11 @@ module.exports = class api {
 
   async getUserData(req, res, next) {
     const {user} = req.query;
+    if (user <= 0 || user > 1000) {
+      res.status(400).json({
+        message: 'USER ID is wrong',
+      })
+    }
     console.log(user)
 
     try {
